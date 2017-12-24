@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io/ioutil"
+	"path"
 	"path/filepath"
 )
 
@@ -31,15 +32,16 @@ type Asset struct {
 	Page
 }
 
-// NewAsset located at path.
+// NewAsset from static file at path p that will be accessed from only its file
+// name.
 //
 // Returns an error if the file couldn't be read.
-func NewAsset(path string) (*Asset, error) {
-	bs, err := ioutil.ReadFile(path)
+func NewAsset(p string) (*Asset, error) {
+	bs, err := ioutil.ReadFile(p)
 	if err != nil {
 		return nil, err
 	}
-	return &Asset{NewPage(path, bytes.NewBuffer(bs))}, nil
+	return &Asset{NewPage(path.Base(p), bytes.NewBuffer(bs))}, nil
 }
 
 // Sitemap is an XML file describing the website's structure.
