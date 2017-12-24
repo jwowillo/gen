@@ -11,7 +11,7 @@ import (
 // Assets corresponding to all files in the dir directory.
 //
 // Returns an error if there were any problems reading the directory or files.
-func Assets(dir string) ([]*Asset, error) {
+func Assets(dir string) ([]Page, error) {
 	fs, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
