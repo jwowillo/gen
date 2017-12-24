@@ -16,15 +16,15 @@ func Assets(dir string) ([]Page, error) {
 	if err != nil {
 		return nil, err
 	}
-	var as []*Asset
+	ps := make([]Page, 0, len(fs))
 	for _, f := range fs {
 		a, err := NewAsset(filepath.Join(dir, f.Name()))
 		if err != nil {
 			return nil, err
 		}
-		as = append(as, a)
+		ps = append(ps, a)
 	}
-	return as, nil
+	return ps, nil
 }
 
 // Asset is a static file.
