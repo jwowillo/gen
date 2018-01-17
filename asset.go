@@ -40,5 +40,5 @@ func NewAsset(p string) (*Asset, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Asset{NewPage(path.Base(p), bytes.NewBuffer(bs))}, nil
+	return &Asset{NewPage("/"+path.Base(p), bytes.NewBuffer(bs))}, nil
 }
