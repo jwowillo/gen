@@ -4,10 +4,14 @@
 // Some common Page types are provided.
 package gen
 
+// TODO: Cleaner solution for async.
+// TODO: ts as last arg.
+
 import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Page is an io.Reader with a path describing its location.
@@ -53,24 +57,31 @@ func Write(out string, ts []Transform, ps []Page) error {
 //
 // Returns an error if any Pages couldn't be written.
 func WriteOnly(out string, ps []Page) error {
+	var wg sync.WaitGroup
+	wg.Add(len(ps))
+	var err error
 	for _, p := range ps {
-		full := filepath.Join(out, p.Path())
-		if err := os.MkdirAll(
-			filepath.Dir(full),
-			os.ModePerm,
-		); err != nil {
-			return err
-		}
-		f, err := os.Create(full)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if _, err := io.Copy(f, p); err != nil {
-			return err
-		}
+		go func(p Page) {
+			defer wg.Done()
+			full := filepath.Join(out, p.Path())
+			if err = os.MkdirAll(
+				filepath.Dir(full),
+				os.ModePerm,
+			); err != nil {
+				return
+			}
+			f, err := os.Create(full)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+			if _, err = io.Copy(f, p); err != nil {
+				return
+			}
+		}(p)
 	}
-	return nil
+	wg.Wait()
+	return err
 }
 
 // Transform accepts Pages and transforms them into different Pages or returns
