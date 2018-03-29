@@ -18,7 +18,12 @@ func BenchmarkGen(b *testing.B) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ts := []gen.Transform{
+		gen.MakeBundle(ps),
+		gen.Minify,
+		gen.Gzip,
+	}
 	for i := 0; i < b.N; i++ {
-		gen.Write("build", gen.AllTransformations, ps)
+		gen.Write("build", ps, ts...)
 	}
 }

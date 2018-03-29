@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/jwowillo/pipe"
 )
 
 // Page is an io.Reader with a path describing its location.
@@ -40,15 +42,56 @@ func NewPage(path string, rd io.Reader) Page {
 //
 // Returns an error if any of the Transforms couldn't by applied or any Pages
 // couldn't be written.
-func Write(out string, ts []Transform, ps []Page) error {
-	var err error
-	for _, t := range ts {
-		ps, err = t(ps)
-		if err != nil {
-			return err
-		}
+func Write(out string, ps []Page, ts ...Transform) error {
+	var ferr error
+	ss := make([]pipe.Stage, len(ts))
+	for i, t := range ts {
+		ct := t
+		ss[i] = pipe.StageFunc(func(x pipe.Item) pipe.Item {
+			p := x.(Page)
+			tp, err := ct(p)
+			if err != nil && ferr == nil {
+				ferr = err
+			}
+			return tp
+		})
 	}
-	return WriteOnly(out, ps)
+	p := pipe.New(ss...)
+	for _, cp := range ps {
+		p.Receive(cp)
+	}
+	var wg sync.WaitGroup
+	wg.Add(len(ps))
+	for i := 0; i < len(ps); i++ {
+		tp := p.Deliver().(Page)
+		go func() {
+			if err := writePageToFS(out, tp); err != nil {
+				ferr = err
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	return ferr
+}
+
+func writePageToFS(out string, p Page) error {
+	full := filepath.Join(out, p.Path())
+	if err := os.MkdirAll(
+		filepath.Dir(full),
+		os.ModePerm,
+	); err != nil {
+		return err
+	}
+	f, err := os.Create(full)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := io.Copy(f, p); err != nil {
+		return err
+	}
+	return nil
 }
 
 // WriteOnly writes the Pages to the out directory and applies no Transforms.
@@ -57,33 +100,9 @@ func Write(out string, ts []Transform, ps []Page) error {
 //
 // Returns an error if any Pages couldn't be written.
 func WriteOnly(out string, ps []Page) error {
-	var wg sync.WaitGroup
-	wg.Add(len(ps))
-	var err error
-	for _, p := range ps {
-		go func(p Page) {
-			defer wg.Done()
-			full := filepath.Join(out, p.Path())
-			if err = os.MkdirAll(
-				filepath.Dir(full),
-				os.ModePerm,
-			); err != nil {
-				return
-			}
-			f, err := os.Create(full)
-			if err != nil {
-				return
-			}
-			defer f.Close()
-			if _, err = io.Copy(f, p); err != nil {
-				return
-			}
-		}(p)
-	}
-	wg.Wait()
-	return err
+	return Write(out, ps)
 }
 
 // Transform accepts Pages and transforms them into different Pages or returns
 // error if the Transform couldn't be applied.
-type Transform func([]Page) ([]Page, error)
+type Transform func(Page) (Page, error)

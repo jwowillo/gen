@@ -17,122 +17,98 @@ import (
 	"github.com/tdewolff/minify/xml"
 )
 
-// AllTransformations is a list of all implemented Transformations.
-var AllTransformations = []Transform{Bundle, Minify, Gzip}
+var minifier *minify.M
+
+func init() {
+	minifier = minify.New()
+	minifier.AddFunc("text/css", css.Minify)
+	minifier.AddFunc("text/html", html.Minify)
+	minifier.AddFunc("application/javascript", js.Minify)
+	minifier.AddFuncRegexp(regexp.MustCompile("[/+]xml$"), xml.Minify)
+}
 
 // Minify the Pages with CSS, HTML, JavaScript, or XML file extensions.
 //
 // All other Pages are skipped.
 //
 // Returns an error if a Page couldn't be minified.
-func Minify(ps []Page) ([]Page, error) {
-	m := minify.New()
-	m.AddFunc("text/css", css.Minify)
-	m.AddFunc("text/html", html.Minify)
-	m.AddFunc("application/javascript", js.Minify)
-	m.AddFuncRegexp(regexp.MustCompile("[/+]xml$"), xml.Minify)
-	return parallelize(ps, func(p Page) (Page, error) {
-		ext := filepath.Ext(p.Path())
-		if ext != ".xml" && ext != ".css" && ext != ".js" &&
-			ext != ".html" {
-			return p, nil
-		}
-		t := mime.TypeByExtension(ext)
-		buf := &bytes.Buffer{}
-		if err := m.Minify(t, buf, p); err != nil {
-			return nil, err
-		}
-		return NewPage(p.Path(), buf), nil
-	})
+func Minify(p Page) (Page, error) {
+	ext := filepath.Ext(p.Path())
+	if ext != ".xml" && ext != ".css" && ext != ".js" &&
+		ext != ".html" {
+		return p, nil
+	}
+	t := mime.TypeByExtension(ext)
+	buf := &bytes.Buffer{}
+	if err := minifier.Minify(t, buf, p); err != nil {
+		return nil, err
+	}
+	return NewPage(p.Path(), buf), nil
 }
 
 // Gzip the Pages.
 //
 // Returns an error if any Page couldn't be gzipped.
-func Gzip(ps []Page) ([]Page, error) {
-	return parallelize(ps, func(p Page) (Page, error) {
-		bs, err := ioutil.ReadAll(p)
-		if err != nil {
-			return nil, err
-		}
-		buf := &bytes.Buffer{}
-		zw := gzip.NewWriter(buf)
-		if _, err := zw.Write(bs); err != nil {
-			return nil, err
-		}
-		if err := zw.Close(); err != nil {
-			return nil, err
-		}
-		return NewPage(p.Path(), buf), nil
-	})
+func Gzip(p Page) (Page, error) {
+	bs, err := ioutil.ReadAll(p)
+	if err != nil {
+		return nil, err
+	}
+	buf := &bytes.Buffer{}
+	zw := gzip.NewWriter(buf)
+	if _, err := zw.Write(bs); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return NewPage(p.Path(), buf), nil
 }
 
 // ErrNoPage is returned when a Page that doesn't exist is referenced.
 var ErrNoPage = errors.New("no Page with path found")
 
-// Bundle all Pages by moving JS and CSS Pages into HTML Pages where they are
+// MakeBundle all Pages by moving JS and CSS Pages into HTML Pages where they are
 // references.
 //
 // Returns an error if any referenced file couldn't be found or if any Page
 // couldn't be read.
-func Bundle(ps []Page) ([]Page, error) {
+func MakeBundle(ps []Page) Transform {
 	assets, err := findAssetPages(ps)
 	if err != nil {
-		return nil, err
+		return func(p Page) (Page, error) {
+			return nil, err
+		}
 	}
-	bundled := make(map[string]interface{})
-	var mux sync.Mutex
-	nps, err := parallelize(ps, func(p Page) (Page, error) {
+	return func(p Page) (Page, error) {
 		if filepath.Ext(p.Path()) != ".html" {
-			return nil, nil
+			return p, nil
 		}
 		buf := &bytes.Buffer{}
 		bs, err := ioutil.ReadAll(p)
 		if err != nil {
 			return nil, err
 		}
-		var paths []string
 		for _, line := range bytes.Split(bs, []byte{'\n'}) {
-			path, err := bundleLine(buf, line, assets)
-			if err != nil {
+			if err := bundleLine(buf, line, assets); err != nil {
 				return nil, err
 			}
-			paths = append(paths, path)
-		}
-		mux.Lock()
-		defer mux.Unlock()
-		bundled[p.Path()] = struct{}{}
-		for _, path := range paths {
-			bundled[path] = struct{}{}
 		}
 		return NewPage(p.Path(), buf), nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	for _, p := range ps {
-		if _, ok := bundled[p.Path()]; ok {
-			continue
-		}
-		nps = append(nps, p)
-	}
-	return nps, nil
 }
 
-func bundleLine(
-	buf *bytes.Buffer, bs []byte,
-	assets map[string][]byte,
-) (string, error) {
+func bundleLine(buf *bytes.Buffer, bs []byte, assets map[string][]byte) error {
 	path, ok := referencedAsset(bs)
 	if !ok {
 		_, err := buf.Write(append(bs, '\n'))
-		return "", err
+		return err
 	}
 	asset, ok := assets[path]
 	if !ok {
-		return "", ErrNoPage
+		return ErrNoPage
 	}
-	return path, writePage(buf, path, asset)
+	return writePage(buf, path, asset)
 }
 
 func referencedAsset(bs []byte) (string, bool) {
