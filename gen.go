@@ -1,11 +1,8 @@
 // Package gen allows Pages to be transformed and written to a directory to
 // generate a website.
 //
-// Some common Page types are provided.
+// Some Transformers and Pages are provided.
 package gen
-
-// TODO: Cleaner solution for async.
-// TODO: ts as last arg.
 
 import (
 	"io"
@@ -13,74 +10,53 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/jwowillo/pipe"
+	"gopkg.in/jwowillo/pipe.v1"
 )
 
-// Page is an io.Reader with a path describing its location.
-type Page interface {
-	Path() string
-	io.Reader
-}
-
-// page with path and io.Reader.
-type page struct {
-	path string
-	io.Reader
-}
-
-// Path of the Page.
-func (p page) Path() string {
-	return p.path
-}
-
-// NewPage where the io.Reader rd is at the path.
-func NewPage(path string, rd io.Reader) Page {
-	return &page{path: path, Reader: rd}
-}
-
-// Write the Pages to the out directory after applying the Transforms in order.
+// Write the Pages to the directory after applying the Transformers in order.
 //
-// Returns an error if any of the Transforms couldn't by applied or any Pages
+// Returns an error if any of the Transformers couldn't by applied or any Pages
 // couldn't be written.
-func Write(out string, ps []Page, ts ...Transform) error {
-	var ferr error
-	ss := make([]pipe.Stage, len(ts))
-	for i, t := range ts {
-		ct := t
-		ss[i] = pipe.StageFunc(func(x pipe.Item) pipe.Item {
-			p := x.(Page)
-			tp, err := ct(p)
-			if err != nil && ferr == nil {
-				ferr = err
-			}
-			return tp
-		})
-	}
-	p := pipe.New(ss...)
-	for _, cp := range ps {
-		p.Receive(cp)
+func Write(out string, ps []Page, ts ...Transformer) []error {
+	p, errs := makePipe(ts)
+	for _, page := range ps {
+		p.Receive(page)
 	}
 	var wg sync.WaitGroup
 	wg.Add(len(ps))
 	for i := 0; i < len(ps); i++ {
-		tp := p.Deliver().(Page)
+		page := p.Deliver().(Page)
 		go func() {
-			if err := writePageToFS(out, tp); err != nil {
-				ferr = err
+			if err := write(out, page); err != nil {
+				errs = append(errs, err)
 			}
 			wg.Done()
 		}()
 	}
 	wg.Wait()
-	return ferr
+	return errs
 }
 
-func writePageToFS(out string, p Page) error {
+// WriteOnly writes the Pages to the out directory.
+//
+// Returns an error if any Pages couldn't be written.
+func WriteOnly(out string, ps []Page) []error {
+	return Write(out, ps)
+}
+
+// WriteWithDefaults writes the Pages to the out directory after applying the
+// Bundle, Minify, and Gzip transforms.
+//
+// Returns an error if any Transformers couldn't be applied or any Pages
+// couldn't be written.
+func WriteWithDefaults(out string, ps []Page) []error {
+	return Write(out, ps, NewBundle(ps), NewMinify(), NewGzip())
+}
+
+// write the Page to the directory.
+func write(out string, p Page) error {
 	full := filepath.Join(out, p.Path())
-	if err := os.MkdirAll(
-		filepath.Dir(full),
-		os.ModePerm,
-	); err != nil {
+	if err := os.MkdirAll(filepath.Dir(full), os.ModePerm); err != nil {
 		return err
 	}
 	f, err := os.Create(full)
@@ -88,21 +64,22 @@ func writePageToFS(out string, p Page) error {
 		return err
 	}
 	defer f.Close()
-	if _, err := io.Copy(f, p); err != nil {
-		return err
+	_, err = io.Copy(f, p)
+	return err
+}
+
+func makePipe(ts []Transformer) (*pipe.Pipe, []error) {
+	var errs []error
+	ss := make([]pipe.Stage, len(ts))
+	for i := 0; i < len(ts); i++ {
+		t := ts[i]
+		ss[i] = pipe.StageFunc(func(x pipe.Item) pipe.Item {
+			p, err := t.Transform(x.(Page))
+			if err != nil {
+				errs = append(errs, err)
+			}
+			return p
+		})
 	}
-	return nil
+	return pipe.New(ss...), errs
 }
-
-// WriteOnly writes the Pages to the out directory and applies no Transforms.
-//
-// This is useful for debugging Pages.
-//
-// Returns an error if any Pages couldn't be written.
-func WriteOnly(out string, ps []Page) error {
-	return Write(out, ps)
-}
-
-// Transform accepts Pages and transforms them into different Pages or returns
-// error if the Transform couldn't be applied.
-type Transform func(Page) (Page, error)

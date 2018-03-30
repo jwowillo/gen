@@ -2,10 +2,33 @@ package gen
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
 	"path"
 	"path/filepath"
 )
+
+// Page is an io.Reader with a path describing its location.
+type Page interface {
+	Path() string
+	io.Reader
+}
+
+// NewPage where the io.Reader is at the path.
+func NewPage(path string, rd io.Reader) Page {
+	return &page{path: path, Reader: rd}
+}
+
+// page with path and io.Reader.
+type page struct {
+	path string
+	io.Reader
+}
+
+// Path of the Page.
+func (p page) Path() string {
+	return p.path
+}
 
 // Assets corresponding to all files in the dir directory.
 //
@@ -31,7 +54,7 @@ type Asset struct {
 	Page
 }
 
-// NewAsset from static file at path p that will be accessed from only its file
+// NewAsset from static file at the path that will be accessed from its file
 // name.
 //
 // Returns an error if the file couldn't be read.
