@@ -47,10 +47,6 @@ func (t Bundle) Transform(p Page) (Page, error) {
 	return NewPage(p.Path(), buf), nil
 }
 
-// bundleLine converts all lines that reference Pages into their referenced
-// assets and stores them back in the bytes.Buffer.
-//
-// Returns ErrNoPage if a referenced Page can't be found.
 func (t Bundle) bundleLine(buf *bytes.Buffer, bs []byte) error {
 	path, ok := referencedAsset(bs)
 	if !ok {
@@ -66,17 +62,11 @@ func (t Bundle) bundleLine(buf *bytes.Buffer, bs []byte) error {
 }
 
 var (
-	// jsPrefix is the prefix of included JS scripts.
-	jsPrefix = []byte("script src=\"/")
-	// cssPrefix is the prefix of included CSS scripts.
+	jsPrefix  = []byte("script src=\"/")
 	cssPrefix = []byte("link rel=\"stylesheet\" href=\"/")
-	// quote is the end of an included script.
-	quote = []byte("\"")
+	quote     = []byte("\"")
 )
 
-// findAssets referenced in all the Pages.
-//
-// Return an error if any Page couldn't be read.
 func findAssets(ps []Page) (map[string][]byte, error) {
 	assets := make(map[string][]byte)
 	for _, p := range ps {
@@ -93,8 +83,6 @@ func findAssets(ps []Page) (map[string][]byte, error) {
 	return assets, nil
 }
 
-// referencedAsset returns the path of the asset referenced in bs and true if
-// one is referenced or an empty string and false if one isn't referenced.
 func referencedAsset(bs []byte) (string, bool) {
 	if path, ok := referencedJS(bs); ok {
 		return path, true
@@ -105,23 +93,14 @@ func referencedAsset(bs []byte) (string, bool) {
 	return "", false
 }
 
-// referencedJS returns the referenced JS Page's path and returns true if one is
-// referenced or an empty string and false if one isn't referenced.
 func referencedJS(line []byte) (string, bool) {
 	return referenced(line, jsPrefix, quote)
 }
 
-// referencedCSS returns the referenced CSS Page's path and returns true if one
-// is referenced or an empty string and false if one isn't referenced.
 func referencedCSS(line []byte) (string, bool) {
 	return referenced(line, cssPrefix, quote)
 }
 
-// referenced returns the referenced Page's path and returns true if one is
-// referenced or an empty string and false if one isn't referenced.
-//
-// The reference is determined by a string surrounded by the start and end
-// bytes.
 func referenced(line, start, end []byte) (string, bool) {
 	i := bytes.Index(line, start)
 	if i == -1 {
@@ -135,7 +114,6 @@ func referenced(line, start, end []byte) (string, bool) {
 	return string(path[:j]), true
 }
 
-// bundleAsset with extension and content to the bytes.Buffer.
 func bundleAsset(buf *bytes.Buffer, ext string, bs []byte) {
 	switch ext {
 	case ".css":

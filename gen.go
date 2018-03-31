@@ -31,13 +31,6 @@ func Write(out string, ps []Page, ts ...Transformer) []error {
 	return errs
 }
 
-// WriteOnly writes the Pages to the out directory.
-//
-// Returns an error if any Pages couldn't be written.
-func WriteOnly(out string, ps []Page) []error {
-	return Write(out, ps)
-}
-
 // WriteWithDefaults writes the Pages to the out directory after applying the
 // Bundle, Minify, and Gzip transforms.
 //
@@ -47,7 +40,6 @@ func WriteWithDefaults(out string, ps []Page) []error {
 	return Write(out, ps, NewBundle(ps), NewMinify(), NewGzip())
 }
 
-// write the Page to the directory.
 func write(out string, p Page) error {
 	full := filepath.Join(out, p.Path())
 	if err := os.MkdirAll(filepath.Dir(full), os.ModePerm); err != nil {
