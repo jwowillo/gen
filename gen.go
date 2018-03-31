@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"gopkg.in/jwowillo/pipe.v1"
 )
@@ -19,21 +18,16 @@ import (
 // couldn't be written.
 func Write(out string, ps []Page, ts ...Transformer) []error {
 	p, errs := makePipe(ts)
-	for _, page := range ps {
-		p.Receive(page)
+	f := pipe.ConsumerFunc(func(x pipe.Item) {
+		if err := write(out, x.(Page)); err != nil {
+			errs = append(errs, err)
+		}
+	})
+	xs := make([]pipe.Item, len(ts))
+	for i, t := range ts {
+		xs[i] = pipe.Item(t)
 	}
-	var wg sync.WaitGroup
-	wg.Add(len(ps))
-	for i := 0; i < len(ps); i++ {
-		page := p.Deliver().(Page)
-		go func() {
-			if err := write(out, page); err != nil {
-				errs = append(errs, err)
-			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
+	pipe.ProcessAndConsume(p, f, xs...)
 	return errs
 }
 
