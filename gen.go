@@ -23,9 +23,9 @@ func Write(out string, ps []Page, ts ...Transformer) []error {
 			errs = append(errs, err)
 		}
 	})
-	xs := make([]pipe.Item, len(ts))
-	for i, t := range ts {
-		xs[i] = pipe.Item(t)
+	xs := make([]pipe.Item, len(ps))
+	for i, page := range ps {
+		xs[i] = pipe.Item(page)
 	}
 	pipe.ProcessAndConsume(p, f, xs...)
 	return errs
