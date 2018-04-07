@@ -1,33 +1,35 @@
-package gen
+package transformer
 
 import (
 	"bytes"
 	"errors"
 	"io/ioutil"
 	"path/filepath"
+
+	"github.com/jwowillo/gen/page"
 )
 
-// ErrNoPage is returned when a Page that doesn't exist is referenced.
-var ErrNoPage = errors.New("no Page with path found")
+// ErrNoPage is returned when a page.Page that doesn't exist is referenced.
+var ErrNoPage = errors.New("no page.Page with path found")
 
-// Bundle is a Transformer which bundles all referenced CSS and JS Pages
-// referenced in a Page.
+// Bundle is a Transformer which bundles all referenced CSS and JS page.Pages
+// referenced in a page.Page.
 type Bundle struct {
 	assets map[string][]byte
 	err    error
 }
 
-// NewBundle that has access to references in the Pages.
-func NewBundle(ps []Page) *Bundle {
+// NewBundle that has access to references in the page.Pages.
+func NewBundle(ps []page.Page) *Bundle {
 	assets, err := findAssets(ps)
 	return &Bundle{assets: assets, err: err}
 }
 
-// Transform the Page by replacing all referenced CSS and JS Pages with their
-// Pages.
+// Transform the page.Page by replacing all referenced CSS and JS page.Pages with their
+// page.Pages.
 //
-// Returns ErrNoPage if a referenced Page can't be found or if bundling fails.
-func (t Bundle) Transform(p Page) (Page, error) {
+// Returns ErrNopage.Page if a referenced page.Page can't be found or if bundling fails.
+func (t Bundle) Transform(p page.Page) (page.Page, error) {
 	if t.err != nil {
 		return nil, t.err
 	}
@@ -44,7 +46,7 @@ func (t Bundle) Transform(p Page) (Page, error) {
 			return nil, err
 		}
 	}
-	return NewPage(p.Path(), buf), nil
+	return page.New(p.Path(), buf), nil
 }
 
 func (t Bundle) bundleLine(buf *bytes.Buffer, bs []byte) error {
@@ -67,7 +69,7 @@ var (
 	quote     = []byte("\"")
 )
 
-func findAssets(ps []Page) (map[string][]byte, error) {
+func findAssets(ps []page.Page) (map[string][]byte, error) {
 	assets := make(map[string][]byte)
 	for _, p := range ps {
 		ext := filepath.Ext(p.Path())

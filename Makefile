@@ -1,4 +1,8 @@
-all: gen_server
+all: generate gen_server
+
+generate:
+	@echo 'generating'
+	go generate
 
 gen_server:
 	@echo 'making gen_server'

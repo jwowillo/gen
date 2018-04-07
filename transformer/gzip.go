@@ -1,12 +1,14 @@
-package gen
+package transformer
 
 import (
 	"bytes"
 	"compress/gzip"
 	"io/ioutil"
+
+	"github.com/jwowillo/gen/page"
 )
 
-// Gzip is a Transformer which gzips Pages.
+// Gzip is a Transformer which gzips page.Pages.
 type Gzip struct{}
 
 // NewGzip Transformer.
@@ -14,10 +16,10 @@ func NewGzip() Gzip {
 	return Gzip{}
 }
 
-// Transform returns the gzipped Page.
+// Transform returns the gzipped page.Page.
 //
-// Returns an error if the Page couldn't be gzipped.
-func (t Gzip) Transform(p Page) (Page, error) {
+// Returns an error if the page.Page couldn't be gzipped.
+func (t Gzip) Transform(p page.Page) (page.Page, error) {
 	bs, err := ioutil.ReadAll(p)
 	if err != nil {
 		return nil, err
@@ -28,5 +30,5 @@ func (t Gzip) Transform(p Page) (Page, error) {
 	if _, err := zw.Write(bs); err != nil {
 		return nil, err
 	}
-	return NewPage(p.Path(), buf), nil
+	return page.New(p.Path(), buf), nil
 }

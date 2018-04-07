@@ -1,34 +1,11 @@
-package gen
+package page
 
 import (
 	"bytes"
-	"io"
 	"io/ioutil"
 	"path"
 	"path/filepath"
 )
-
-// Page is an io.Reader with a path describing its location.
-type Page interface {
-	Path() string
-	io.Reader
-}
-
-// NewPage where the io.Reader is at the path.
-func NewPage(path string, rd io.Reader) Page {
-	return &page{path: path, Reader: rd}
-}
-
-// page with path and io.Reader.
-type page struct {
-	path string
-	io.Reader
-}
-
-// Path of the Page.
-func (p page) Path() string {
-	return p.path
-}
 
 // Assets corresponding to all files in the dir directory.
 //
@@ -63,5 +40,5 @@ func NewAsset(p string) (*Asset, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Asset{NewPage("/"+path.Base(p), bytes.NewBuffer(bs))}, nil
+	return &Asset{New("/"+path.Base(p), bytes.NewBuffer(bs))}, nil
 }

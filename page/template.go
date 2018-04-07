@@ -1,4 +1,4 @@
-package gen
+package page
 
 import (
 	"bytes"
@@ -24,5 +24,5 @@ func NewTemplate(tmpls []string, x interface{}, p string) (*Template, error) {
 	if err := tmpl.ExecuteTemplate(buf, base, x); err != nil {
 		return nil, err
 	}
-	return &Template{NewPage(p, buf)}, nil
+	return &Template{New(p, buf)}, nil
 }

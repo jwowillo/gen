@@ -1,4 +1,4 @@
-package gen
+package transformer
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/jwowillo/gen/page"
 	"github.com/tdewolff/minify"
 	"github.com/tdewolff/minify/css"
 	"github.com/tdewolff/minify/html"
@@ -13,7 +14,7 @@ import (
 	"github.com/tdewolff/minify/xml"
 )
 
-// Minify is a Transformer which minifies Pages.
+// Minify is a Transformer which minifies page.Pages.
 type Minify struct {
 	minifier *minify.M
 }
@@ -28,11 +29,11 @@ func NewMinify() *Minify {
 	return &Minify{minifier: m}
 }
 
-// Transform the Page by minifying it if it is an HTML, CSS, JS, and XML file
+// Transform the page.Page by minifying it if it is an HTML, CSS, JS, and XML file
 // and skipping it otherwise.
 //
-// Returns an error if the Page couldn't be minified.
-func (t Minify) Transform(p Page) (Page, error) {
+// Returns an error if the page.Page couldn't be minified.
+func (t Minify) Transform(p page.Page) (page.Page, error) {
 	ext := mime.TypeByExtension(filepath.Ext(p.Path()))
 	buf := &bytes.Buffer{}
 	if err := t.minifier.Minify(ext, buf, p); err != nil {
@@ -41,5 +42,5 @@ func (t Minify) Transform(p Page) (Page, error) {
 		}
 		return nil, err
 	}
-	return NewPage(p.Path(), buf), nil
+	return page.New(p.Path(), buf), nil
 }
